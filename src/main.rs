@@ -1,14 +1,25 @@
 use anyhow::Result;
-
-use headless_chrome::{Browser, LaunchOptions};
+use clap::Parser;
 
 fn main() -> Result<()> {
-    let browser = Browser::new(LaunchOptions {
-        headless: false,
-        ..Default::default()
-    })?;
-    let tab = browser.new_tab()?;
-    tab.navigate_to("https://www.rust-lang.org")?;
-    tab.wait_until_navigated()?;
+    let args = CommandArgs::parse();
+    println!("{:?}", args);
     Ok(())
+}
+
+#[derive(Debug, Parser)]
+#[command[version, about, author]]
+struct CommandArgs {
+    /// Configure the initial settings
+    #[arg(short, long, default_value = "false")]
+    configure: bool,
+    /// AWS profile
+    #[arg(short, long, default_value = "default")]
+    profile: String,
+    /// AWS IAM role name
+    #[arg(short, long)]
+    role_name: Option<String>,
+    /// Open AWS management console in the browser
+    #[arg(short, long, default_value = "false")]
+    web: bool,
 }
