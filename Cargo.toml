@@ -2,6 +2,7 @@
 name = "awsaml"
 version = "0.1.0"
 edition = "2021"
+description = "AWS SAML login helper"
 
 [dependencies]
 anyhow = "1.0.95"

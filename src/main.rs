@@ -1,9 +1,18 @@
+mod cmd;
 use anyhow::Result;
 use clap::Parser;
+use cmd::config::Config;
 
 fn main() -> Result<()> {
     let args = CommandArgs::parse();
     println!("{:?}", args);
+    let config = if args.configure {
+        Config::configure(&args.profile)?
+    } else {
+        Config::load(&args.profile)?
+    };
+    println!("{:?}", config);
+
     Ok(())
 }
 
