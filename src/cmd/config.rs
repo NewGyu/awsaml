@@ -62,7 +62,8 @@ impl Config {
                 &self.chrome_user_data_dir,
             );
 
-        config_ini.write_to_file(config_file_path)?;
+        config_ini.write_to_file(&config_file_path)?;
+        println!("Configuration saved to {}", &config_file_path);
         Ok(())
     }
 
