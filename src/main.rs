@@ -1,5 +1,6 @@
+mod cmd;
+use crate::cmd::config::Config;
 use anyhow::Result;
-use awsaml::cmd::config::Config;
 use clap::{Parser, Subcommand};
 
 fn main() -> Result<()> {

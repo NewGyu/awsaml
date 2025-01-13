@@ -1,12 +1,7 @@
-use std::path::Path;
-
 use anyhow::Result;
-use ini::Ini;
 
-use crate::{
-    aws,
-    cmd::prompt::{Prompt, Required},
-};
+use crate::cmd::prompt::{Prompt, Required};
+use awsaml::aws;
 
 #[derive(Debug)]
 pub struct Config {
@@ -46,10 +41,10 @@ impl Config {
 
     /// save the configuration to a ini file
     pub fn save(&self, profile: &String) -> Result<()> {
-        let config_file_path = aws::config::file_path();
-        let mut config_ini = Config::load_config_file(&config_file_path)?.unwrap_or(Ini::new());
+        let mut awsconfig = aws::Config::load_or_new()?;
 
-        config_ini
+        awsconfig
+            .ini
             .with_section(Some(profile))
             .set(config_keys::ENTRA_ID_TENANT, &self.entra_id_tenant)
             .set(config_keys::APP_ID_URI, &self.app_id_uri)
@@ -61,49 +56,35 @@ impl Config {
                 config_keys::CHROME_USER_DATA_DIR,
                 &self.chrome_user_data_dir,
             );
-
-        config_ini.write_to_file(&config_file_path)?;
-        println!("Configuration saved to {}", &config_file_path);
+        awsconfig.save()?;
+        println!("Configuration saved to {}", &awsconfig.file_path);
         Ok(())
     }
 
-    fn load_config_file(filepath: &String) -> Result<Option<Ini>> {
-        // does the file exist?
-        if !Path::new(filepath).exists() {
-            return Ok(None);
-        }
-
-        let config_file = Ini::load_from_file(filepath)?;
-        Ok(Some(config_file))
-    }
-
     pub fn load(profile: &String) -> Result<Config> {
-        let config_file_path = aws::config::file_path();
-        if let Some(config_ini) = Config::load_config_file(&config_file_path)? {
-            if let Some(section) = config_ini.section(Some(profile)) {
-                Ok(Config {
-                    entra_id_tenant: section
-                        .get(config_keys::ENTRA_ID_TENANT)
-                        .unwrap_or("")
-                        .to_string(),
-                    app_id_uri: section
-                        .get(config_keys::APP_ID_URI)
-                        .unwrap_or("")
-                        .to_string(),
-                    session_duration_hours: section
-                        .get(config_keys::SESSION_DURATION_HOURS)
-                        .unwrap_or("0")
-                        .parse::<i32>()?,
-                    chrome_user_data_dir: section
-                        .get(config_keys::CHROME_USER_DATA_DIR)
-                        .unwrap_or("")
-                        .to_string(),
-                })
-            } else {
-                Err(anyhow::anyhow!("Profile not found"))
-            }
+        let awsconfig = aws::Config::load_or_new()?;
+
+        if let Some(section) = awsconfig.ini.section(Some(profile)) {
+            Ok(Config {
+                entra_id_tenant: section
+                    .get(config_keys::ENTRA_ID_TENANT)
+                    .unwrap_or("")
+                    .to_string(),
+                app_id_uri: section
+                    .get(config_keys::APP_ID_URI)
+                    .unwrap_or("")
+                    .to_string(),
+                session_duration_hours: section
+                    .get(config_keys::SESSION_DURATION_HOURS)
+                    .unwrap_or("0")
+                    .parse::<i32>()?,
+                chrome_user_data_dir: section
+                    .get(config_keys::CHROME_USER_DATA_DIR)
+                    .unwrap_or("")
+                    .to_string(),
+            })
         } else {
-            Err(anyhow::anyhow!("Config file not found"))
+            Err(anyhow::anyhow!("Profile[{}] not found", profile))
         }
     }
 }
