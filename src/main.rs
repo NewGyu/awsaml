@@ -1,23 +1,13 @@
 mod cmd;
-use crate::cmd::config::Config;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 fn main() -> Result<()> {
     let args = CommandArgs::parse();
-    println!("{:?}", args);
     match args.subcommand {
-        Subcommands::Configure => {
-            let new_config = Config::configure()?;
-            new_config.save(&args.profile)?;
-        }
-        Subcommands::Login { role_name } => {
-            let config = Config::load(&args.profile)?;
-            println!("{:?}", config);
-        }
+        Subcommands::Configure => cmd::configure(&args.profile),
+        Subcommands::Login { role_name } => cmd::login(&args.profile, role_name),
     }
-
-    Ok(())
 }
 
 #[derive(Debug, Parser)]
