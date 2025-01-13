@@ -46,7 +46,7 @@ impl Config {
 
     /// save the configuration to a ini file
     pub fn save(&self, profile: &String) -> Result<()> {
-        let config_file_path = aws::get_aws_config_file();
+        let config_file_path = aws::config::file_path();
         let mut config_ini = Config::load_config_file(&config_file_path)?.unwrap_or(Ini::new());
 
         config_ini
@@ -78,7 +78,7 @@ impl Config {
     }
 
     pub fn load(profile: &String) -> Result<Config> {
-        let config_file_path = aws::get_aws_config_file();
+        let config_file_path = aws::config::file_path();
         if let Some(config_ini) = Config::load_config_file(&config_file_path)? {
             if let Some(section) = config_ini.section(Some(profile)) {
                 Ok(Config {

@@ -11,10 +11,8 @@ fn main() -> Result<()> {
             new_config.save(&args.profile)?;
         }
         Subcommands::Login { role_name } => {
-            println!(
-                "Login: profile={}, role_name={:?}",
-                &args.profile, role_name
-            );
+            let config = Config::load(&args.profile)?;
+            println!("{:?}", config);
         }
     }
 
