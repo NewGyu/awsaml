@@ -1,17 +1,22 @@
-mod cmd;
 use anyhow::Result;
-use clap::Parser;
-use cmd::config::Config;
+use awsaml::cmd::config::Config;
+use clap::{Parser, Subcommand};
 
 fn main() -> Result<()> {
     let args = CommandArgs::parse();
     println!("{:?}", args);
-    let config = if args.configure {
-        Config::configure(&args.profile)?
-    } else {
-        Config::load(&args.profile)?
-    };
-    println!("{:?}", config);
+    match args.subcommand {
+        Subcommands::Configure => {
+            let new_config = Config::configure()?;
+            new_config.save(&args.profile)?;
+        }
+        Subcommands::Login { role_name } => {
+            println!(
+                "Login: profile={}, role_name={:?}",
+                &args.profile, role_name
+            );
+        }
+    }
 
     Ok(())
 }
@@ -19,16 +24,21 @@ fn main() -> Result<()> {
 #[derive(Debug, Parser)]
 #[command[version, about, author]]
 struct CommandArgs {
-    /// Configure the initial settings
-    #[arg(short, long, default_value = "false")]
-    configure: bool,
+    #[command(subcommand)]
+    subcommand: Subcommands,
     /// AWS profile
     #[arg(short, long, default_value = "default")]
     profile: String,
-    /// AWS IAM role name
-    #[arg(short, long)]
-    role_name: Option<String>,
-    /// Open AWS management console in the browser
-    #[arg(short, long, default_value = "false")]
-    web: bool,
+}
+
+#[derive(Debug, Subcommand)]
+enum Subcommands {
+    /// Configure the initial settings
+    Configure,
+    /// Login with SAML SSO, then assume an AWS IAM role
+    Login {
+        /// AWS IAM role name
+        #[arg(short, long)]
+        role_name: Option<String>,
+    },
 }

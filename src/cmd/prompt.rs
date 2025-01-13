@@ -49,7 +49,7 @@ impl Prompt {
 
     fn print_input_msg(&self) {
         print!(
-            "{} ({})>",
+            "{} ({}) >",
             self.msg,
             match &self.required {
                 Required::Yes(default) => match default {
