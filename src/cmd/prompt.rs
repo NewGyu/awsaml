@@ -1,3 +1,4 @@
+//! Prompt for user input to configure the application
 use anyhow::{Error, Result};
 use std::{
     io::{self, Write},

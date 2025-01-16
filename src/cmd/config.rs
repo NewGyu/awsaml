@@ -1,3 +1,4 @@
+//! Configuration for the AWSAML CLI
 use anyhow::Result;
 
 use crate::cmd::prompt::{Prompt, Required};

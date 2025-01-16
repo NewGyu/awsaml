@@ -1,3 +1,4 @@
+//! This module provides a struct to manage AWS config file.
 use anyhow::Result;
 use std::{env, path::Path};
 
