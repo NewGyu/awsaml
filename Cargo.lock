@@ -424,11 +424,14 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "aws-config",
+ "base64 0.22.1",
  "chrono",
  "clap",
  "dirs",
+ "flate2",
  "headless_chrome",
  "rust-ini",
+ "urlencoding",
  "uuid",
 ]
 
