@@ -1,20 +1,24 @@
+//! Module for handling SAML requests
 use chrono::{DateTime, Utc};
+use url::Url;
 use uuid::Uuid;
 
 use super::EncodedSAML;
 
 pub struct SamlAuthRequest {
-    id: Uuid,
-    instant: DateTime<Utc>,
-    app_id_uri: String,
+    pub id: Uuid,
+    pub instant: DateTime<Utc>,
+    pub app_id_uri: Url,
+    pub callback_to: Url,
 }
 
 impl SamlAuthRequest {
-    pub fn new(app_id_uri: String) -> Self {
+    pub fn new(app_id_uri: Url, callback_to: Url) -> Self {
         SamlAuthRequest {
             id: Uuid::new_v4(),
             instant: Utc::now(),
             app_id_uri,
+            callback_to,
         }
     }
 
@@ -22,7 +26,7 @@ impl SamlAuthRequest {
         format!(
             r#"
             <samlp:AuthnRequest
-                AssertionConsumerServiceURL="{redirect_to}"
+                AssertionConsumerServiceURL="{callback_to}"
                 ID="id_{id}"
                 IssueInstant="{timestamp}"
                 ProtocolBinding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
@@ -32,7 +36,7 @@ impl SamlAuthRequest {
                 <saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">{req_issuer}</saml:Issuer>
                 <samlp:NameIDPolicy Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress" />
             </samlp:AuthnRequest>"#,
-            redirect_to = self.app_id_uri,
+            callback_to = self.callback_to,
             id = self.id,
             timestamp = self.instant.to_rfc3339(),
             req_issuer = self.app_id_uri
@@ -53,26 +57,74 @@ impl ToString for SamlAuthRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::aws::AWS_SAML_CALLBACK;
+    use sxd_document::dom::Document;
+    use sxd_document::parser as xml_parser;
+    use sxd_xpath::{Context, Error, Factory, Value};
 
-    #[test]
-    fn test_saml_auth_request_to_string() {
-        //Arrange
-        let target = SamlAuthRequest::new("https://example.com".to_string());
-        //Act
-        let result = target.to_string();
-        println!("{}", result);
-        //Assert
-        assert!(result.contains("<samlp:AuthnRequest"));
+    /// test utility function to evaluate an xpath expression with namespaces
+    fn evaluate_xpath<'a>(document: &'a Document, xpath: &str) -> Result<Value<'a>, anyhow::Error> {
+        let factory = Factory::new();
+        let expression = factory.build(xpath)?;
+        let expression = expression.ok_or(Error::NoXPath)?;
+
+        let mut context = Context::new();
+        context.set_namespace("samlp", "urn:oasis:names:tc:SAML:2.0:protocol");
+        context.set_namespace("saml", "urn:oasis:names:tc:SAML:2.0:assertion");
+
+        expression
+            .evaluate(&context, document.root())
+            .map_err(Into::into)
     }
 
     #[test]
-    fn test_encoded_saml() {
+    fn test_saml_auth_request_to_string() -> anyhow::Result<()> {
         //Arrange
-        let target = SamlAuthRequest::new("https://example.com".to_string());
+        let saml_req = SamlAuthRequest::new(
+            Url::parse("https://example.com")?,
+            Url::parse(AWS_SAML_CALLBACK)?,
+        );
+
         //Act
-        let result = target.to_encoded_saml();
-        println!("{:?}", result);
+        let xml_string = saml_req.to_string();
+
         //Assert
-        assert!(result.0.contains("jZFRS8MwFIX%2fSsn72qZLXQxtIVs3GEyQTX3w7VKvrtAkNTed4q%2b369iToL5e7jmc75yCwHS90kM42j2%2bD0gh%2bjSdpZIN3ioH1JKyYJBUaNRB3%2b1UFqfKYIAXCMCibV2yjRS1lFLr%2bVKIFV9KIeaLXIu1zHha365Z9ISeWmdLNopHDdGAW0sBbBhPaZbPUj7jNw9cqJSrnMeLTD6f%2f%2b6BqD1hyV6hI2SRJkIfRqeVszQY9Af0p7bBx%2f2uZMcQelJJQu2bbW0MHxSDgS9n48aZ5AzKLmxqgv6dsPcuuMaNko3zDU4FXWNUxUTg%2f9MUXBOz6u98RXIxrork5y7VNw%3d%3d"));
+        let xml = xml_parser::parse(&xml_string).expect("Could not parse XML");
+        let xml = xml.as_document();
+
+        // callback url is set to the AssertionConsumerServiceURL attribute
+        let assertion_consumer_service_url_attr =
+            evaluate_xpath(&xml, "/samlp:AuthnRequest/@AssertionConsumerServiceURL");
+        assert_eq!(
+            assertion_consumer_service_url_attr
+                .ok()
+                .and_then(|v| Some(v.into_string())),
+            Some(AWS_SAML_CALLBACK.to_string())
+        );
+
+        // app_id_uri is set to the Issuer element
+        let issuer_elm = evaluate_xpath(&xml, "/samlp:AuthnRequest/saml:Issuer");
+        assert_eq!(
+            issuer_elm.ok().and_then(|v| Some(v.into_string())),
+            Some("https://example.com/".to_string())
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_encoded_saml() -> anyhow::Result<()> {
+        //Arrange
+        let saml_req = SamlAuthRequest::new(
+            Url::parse("https://example.com")?,
+            Url::parse(AWS_SAML_CALLBACK)?,
+        );
+
+        //Act
+        let encoded_saml = saml_req.to_encoded_saml();
+        //        println!("{:?}", result);
+        //Assert
+        assert_eq!(encoded_saml.to_raw_string()?, saml_req.to_string());
+        Ok(())
     }
 }

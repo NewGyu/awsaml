@@ -1,44 +1,72 @@
-use std::io::{Read, Write};
+mod chrome;
+pub mod entra_id;
+mod req;
+mod res;
 
 use anyhow::Result;
-mod assertion;
-mod entra_id;
-mod req;
-
-use assertion::SamlAssertion;
 use base64::prelude::{Engine, BASE64_STANDARD};
+pub use chrome::ChromeSamlAgent;
 use flate2::read::DeflateDecoder;
-use req::SamlAuthRequest;
+pub use req::SamlAuthRequest;
+pub use res::SamlResponse;
+use std::io::{Read, Write};
+use url::Url;
 
 // acquire the SAML assertion from the IdP
 pub trait SamlIdProvider {
-    fn authenticate(&self) -> Result<SamlAssertion>;
-}
-
-type Base64EncodedString = String;
-type RawString = String;
-
-#[derive(Debug)]
-struct EncodedSAML(Base64EncodedString);
-
-impl EncodedSAML {
-    fn from_raw_string(raw_string: RawString) -> Self {
-        let mut deflater =
-            flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
-        deflater.write_all(raw_string.as_bytes()).unwrap();
-        let deflated = deflater.finish().unwrap();
-        let deflated = BASE64_STANDARD.encode(deflated.as_slice());
-        let deflated = urlencoding::encode(deflated.as_str());
-        EncodedSAML(deflated.to_string())
+    fn request_url(&self, saml_request: SamlAuthRequest) -> Url {
+        let mut url = self.request_base();
+        url.set_query(Some(&format!(
+            "SAMLRequest={}",
+            saml_request.to_encoded_saml().to_string()
+        )));
+        url
     }
 
-    fn to_raw_string(&self) -> Result<RawString> {
+    fn request_base(&self) -> Url;
+}
+
+type Base64EncodedXMLString = String;
+type RawXMLString = String;
+
+#[derive(Debug)]
+pub struct EncodedSAML(Base64EncodedXMLString);
+
+impl EncodedSAML {
+    /// Construct an instance from a raw XML string
+    fn from_raw_string(raw_string: RawXMLString) -> Self {
+        let deflated = Self::deflate(raw_string);
+        let encoded = BASE64_STANDARD.encode(&deflated);
+        let encoded = urlencoding::encode(encoded.as_str());
+        EncodedSAML(encoded.to_string())
+    }
+
+    /// Convert the instance to a raw XML string
+    fn to_raw_string(&self) -> Result<RawXMLString> {
         let decoded = urlencoding::decode(&self.0)?;
-        let decoded = BASE64_STANDARD.decode(decoded.into_owned())?;
-        let mut deflater = DeflateDecoder::new(decoded.as_slice());
-        let mut xml_string = String::new();
-        deflater.read_to_string(&mut xml_string)?;
-        Ok(xml_string)
+        let bytes = BASE64_STANDARD.decode(decoded.into_owned())?;
+        let raw_xml = Self::inflate(bytes);
+        Ok(raw_xml)
+    }
+
+    fn deflate(str: String) -> Vec<u8> {
+        let mut deflater =
+            flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
+        deflater.write_all(str.as_bytes()).unwrap();
+        deflater.finish().unwrap()
+    }
+
+    fn inflate(bytes: Vec<u8>) -> String {
+        let mut inflater = DeflateDecoder::new(bytes.as_slice());
+        let mut str = String::new();
+        inflater.read_to_string(&mut str).unwrap();
+        str
+    }
+}
+
+impl ToString for EncodedSAML {
+    fn to_string(&self) -> String {
+        self.0.clone()
     }
 }
 
@@ -53,10 +81,9 @@ mod tests {
         //Arrange
         let target = EncodedSAML(ENCODED_SAML_REQUEST.to_string());
         //Act
-        let result = target.to_raw_string();
+        let result = target.to_raw_string().unwrap();
         //Assert
-        assert!(result.is_ok());
-        assert!(result.unwrap().contains("<samlp:AuthnRequest"));
+        assert!(result.starts_with("<samlp:AuthnRequest"));
     }
 
     #[test]
