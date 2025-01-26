@@ -25,7 +25,9 @@ impl ChromeSamlAgent {
         }
     }
 
-    /// Request SAML request to IdP in order to acquire SAML assertion
+    /// To acquire SAML assertion from IdP,
+    /// the agent will send a SAML request to IdP
+    /// with launching a browser tab.
     pub fn saml_request_to_idp(&mut self, saml_req: SamlAuthRequest) -> Result<SamlResponse> {
         let (_browser, tab, receiver) = self.launch_browser_tab()?;
         let url = self.idp.request_url(saml_req).to_string();
@@ -54,20 +56,34 @@ impl ChromeSamlAgent {
 
         let (sender, receiver) = channel::<Result<SamlResponse>>();
         let callback_url = self.sp_callback_url.to_string();
-        tab.add_event_listener(Arc::new(move |event: &Event| {
-            if let Event::NetworkRequestWillBeSent(e) = event {
+        tab.add_event_listener(Arc::new(move |event: &Event| match event {
+            Event::NetworkRequestWillBeSent(e) => {
                 if e.params.request.url == callback_url && e.params.request.method == "POST" {
                     let r = Self::capture_callback_request(&e.params.request);
-                    let _ = sender.send(r);
+                    sender.send(r).expect("Failed to send to receiver");
                 }
             }
+            Event::NetworkResponseReceived(e) => {
+                if e.params.response.status >= 400 {
+                    log::error!("Received response is error: {:?}", e.params.response);
+                    sender
+                        .send(Err(anyhow!(
+                            "Response error {}, {}",
+                            e.params.response.status,
+                            e.params.response.url
+                        )))
+                        .expect("Failed to send to receiver");
+                }
+            }
+            _ => {}
         }))?;
         log::debug!("event listener added");
         Ok((browser, tab, receiver))
     }
 
     /// capture the callback request from IdP to SP
-    /// and then extract the SAMLResponse
+    /// and then extract the SAMLResponse.
+    /// Note: The name is "response" but it's actually a redirect request from IdP to SP.
     fn capture_callback_request(callback_request: &Request) -> Result<SamlResponse> {
         let post_entries = callback_request
             .post_data_entries
