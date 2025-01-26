@@ -1,15 +1,16 @@
 //! Module for handling SAML requests
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, SecondsFormat, Utc};
 use url::Url;
 use uuid::Uuid;
 
 use super::EncodedSAML;
 
+#[derive(Debug)]
 pub struct SamlAuthRequest {
     pub id: Uuid,
     pub instant: DateTime<Utc>,
-    pub app_id_uri: Url,
-    pub callback_to: Url,
+    pub app_id_uri: String,
+    pub callback_to: String,
 }
 
 impl SamlAuthRequest {
@@ -17,8 +18,8 @@ impl SamlAuthRequest {
         SamlAuthRequest {
             id: Uuid::new_v4(),
             instant: Utc::now(),
-            app_id_uri,
-            callback_to,
+            app_id_uri: app_id_uri.to_string(),
+            callback_to: callback_to.to_string(),
         }
     }
 
@@ -38,13 +39,15 @@ impl SamlAuthRequest {
             </samlp:AuthnRequest>"#,
             callback_to = self.callback_to,
             id = self.id,
-            timestamp = self.instant.to_rfc3339(),
+            timestamp = self.instant.to_rfc3339_opts(SecondsFormat::Millis, true),
             req_issuer = self.app_id_uri
         )
     }
 
     pub fn to_encoded_saml(&self) -> EncodedSAML {
-        EncodedSAML::from_raw_string(self.to_xml())
+        let xml = self.to_xml();
+        log::debug!("SAML Request: {}", xml);
+        EncodedSAML::from_raw_string(xml)
     }
 }
 
