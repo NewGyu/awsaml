@@ -3,7 +3,8 @@ mod cmd;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     env_logger::init();
     let args = CommandArgs::parse();
     log::debug!("{:?}", args);
