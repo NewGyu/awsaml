@@ -10,25 +10,28 @@ use std::sync::{
 };
 use url::{form_urlencoded, Url};
 
+#[derive(Debug)]
 /// An agent that performs SAML authentication by manipulating Headless Chrome
 pub struct ChromeSamlAgent {
     idp: Box<dyn SamlIdProvider>,
-    sp_callback_url: Url,
+    sp_callback_url: String,
 }
 
 impl ChromeSamlAgent {
     pub fn new(idp: Box<dyn SamlIdProvider>, callback_url: Url) -> Self {
         ChromeSamlAgent {
             idp,
-            sp_callback_url: callback_url,
+            sp_callback_url: callback_url.to_string(),
         }
     }
 
     /// Request SAML request to IdP in order to acquire SAML assertion
     pub fn saml_request_to_idp(&mut self, saml_req: SamlAuthRequest) -> Result<SamlResponse> {
-        let (_, tab, receiver) = self.launch_browser_tab()?;
+        let (_browser, tab, receiver) = self.launch_browser_tab()?;
         let url = self.idp.request_url(saml_req).to_string();
+        log::debug!("Navigating to: {}", &url);
         tab.navigate_to(&url)?;
+        log::debug!("navigated");
         receiver.recv()?
     }
 
@@ -59,7 +62,7 @@ impl ChromeSamlAgent {
                 }
             }
         }))?;
-
+        log::debug!("event listener added");
         Ok((browser, tab, receiver))
     }
 

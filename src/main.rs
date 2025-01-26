@@ -1,9 +1,12 @@
 mod cmd;
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 fn main() -> Result<()> {
+    env_logger::init();
     let args = CommandArgs::parse();
+    log::debug!("{:?}", args);
     match args.subcommand {
         Subcommands::Configure => cmd::configure(&args.profile),
         Subcommands::Login { role_name } => cmd::login(&args.profile, role_name),

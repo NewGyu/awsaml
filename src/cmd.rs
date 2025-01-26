@@ -26,12 +26,18 @@ pub fn configure(profile: &String) -> Result<()> {
 /// Aquired credentials will be saved to `~/.aws/credentials` file.
 pub fn login(profile: &String, _role_name: Option<String>) -> Result<()> {
     let config = Config::load(profile)?;
+    log::debug!("{:?}", &config);
+
     let saml_req = SamlAuthRequest::new(
         Url::parse(&config.app_id_uri)?,
         Url::parse(AWS_SAML_CALLBACK)?,
     );
+    log::debug!("{:?}", &saml_req);
+
     let entra_id = EntraIdSamlIdProvider::new(config.entra_id_tenant.to_string());
     let mut agent = ChromeSamlAgent::new(Box::new(entra_id), Url::parse(AWS_SAML_CALLBACK)?);
+    log::debug!("{:?}", &agent);
+
     let saml_res = agent.saml_request_to_idp(saml_req)?;
     println!("{:?}", &saml_res);
     assume_role_with_saml(saml_res);

@@ -9,11 +9,14 @@ pub use chrome::ChromeSamlAgent;
 use flate2::read::DeflateDecoder;
 pub use req::SamlAuthRequest;
 pub use res::SamlResponse;
-use std::io::{Read, Write};
+use std::{
+    fmt::Debug,
+    io::{Read, Write},
+};
 use url::Url;
 
 // acquire the SAML assertion from the IdP
-pub trait SamlIdProvider {
+pub trait SamlIdProvider: Debug {
     fn request_url(&self, saml_request: SamlAuthRequest) -> Url {
         let mut url = self.request_base();
         url.set_query(Some(&format!(

@@ -2,6 +2,7 @@ use url::Url;
 
 use super::SamlIdProvider;
 
+#[derive(Debug)]
 pub struct EntraIdSamlIdProvider {
     tenant_id: String,
 }
