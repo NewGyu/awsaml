@@ -14,12 +14,6 @@ use url::{form_urlencoded, Url};
 pub struct ChromeSamlAgent {
     idp: Box<dyn SamlIdProvider>,
     sp_callback_url: Url,
-    agent_session: Option<AgentSession>,
-}
-
-struct AgentSession {
-    tab: Arc<Tab>,
-    receiver: Receiver<Result<SamlResponse>>,
 }
 
 impl ChromeSamlAgent {
@@ -27,13 +21,22 @@ impl ChromeSamlAgent {
         ChromeSamlAgent {
             idp,
             sp_callback_url: callback_url,
-            agent_session: None,
         }
+    }
+
+    /// Request SAML request to IdP in order to acquire SAML assertion
+    pub fn saml_request_to_idp(&mut self, saml_req: SamlAuthRequest) -> Result<SamlResponse> {
+        let (_, tab, receiver) = self.launch_browser_tab()?;
+        let url = self.idp.request_url(saml_req).to_string();
+        tab.navigate_to(&url)?;
+        receiver.recv()?
     }
 
     /// Launch a browser tab,
     /// and set event listener to capture the callback request
-    pub fn launch_browser_tab(&mut self) -> Result<()> {
+    fn launch_browser_tab(
+        &mut self,
+    ) -> Result<(Browser, Arc<Tab>, Receiver<Result<SamlResponse>>)> {
         let browser = Browser::new(LaunchOptions {
             headless: false,
             ..Default::default()
@@ -57,20 +60,7 @@ impl ChromeSamlAgent {
             }
         }))?;
 
-        self.agent_session = Some(AgentSession { tab, receiver });
-        Ok(())
-    }
-
-    /// Aquire the SAML assertion from the IdP
-    /// by processing the SAML request
-    pub fn process_saml_request(&self, saml_req: SamlAuthRequest) -> Result<SamlResponse> {
-        let url = self.idp.request_url(saml_req).to_string();
-        let session = self
-            .agent_session
-            .as_ref()
-            .ok_or(anyhow!("No active session. Tab is not launched"))?;
-        session.tab.navigate_to(&url)?;
-        session.receiver.recv()?
+        Ok((browser, tab, receiver))
     }
 
     /// capture the callback request from IdP to SP

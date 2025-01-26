@@ -32,8 +32,7 @@ pub fn login(profile: &String, _role_name: Option<String>) -> Result<()> {
     );
     let entra_id = EntraIdSamlIdProvider::new(config.entra_id_tenant.to_string());
     let mut agent = ChromeSamlAgent::new(Box::new(entra_id), Url::parse(AWS_SAML_CALLBACK)?);
-    agent.launch_browser_tab()?;
-    let saml_res = agent.process_saml_request(saml_req)?;
+    let saml_res = agent.saml_request_to_idp(saml_req)?;
     println!("{:?}", &saml_res);
     assume_role_with_saml(saml_res);
     Ok(())
