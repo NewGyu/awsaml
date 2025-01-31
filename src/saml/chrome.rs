@@ -55,29 +55,50 @@ impl ChromeSamlAgent {
         })?;
 
         let (sender, receiver) = channel::<Result<SamlResponse>>();
-        let callback_url = self.sp_callback_url.to_string();
-        tab.add_event_listener(Arc::new(move |event: &Event| match event {
-            Event::NetworkRequestWillBeSent(e) => {
-                if e.params.request.url == callback_url && e.params.request.method == "POST" {
-                    let r = Self::capture_callback_request(&e.params.request);
-                    sender.send(r).expect("Failed to send to receiver");
+        let sender = Arc::new(sender);
+
+        // add event listener to capture the callback request
+        {
+            let callback_url = self.sp_callback_url.to_string();
+            let sender = sender.clone();
+            tab.add_event_listener(Arc::new(move |event: &Event| match event {
+                Event::NetworkRequestWillBeSent(e) => {
+                    if e.params.request.url == callback_url && e.params.request.method == "POST" {
+                        let r = Self::capture_callback_request(&e.params.request);
+                        sender.send(r).expect("Failed to send to receiver");
+                    }
                 }
-            }
-            Event::NetworkResponseReceived(e) => {
-                if e.params.response.status >= 400 {
-                    log::error!("Received response is error: {:?}", e.params.response);
-                    sender
-                        .send(Err(anyhow!(
-                            "Response error {}, {}",
-                            e.params.response.status,
-                            e.params.response.url
-                        )))
-                        .expect("Failed to send to receiver");
-                }
-            }
-            _ => {}
-        }))?;
-        log::debug!("event listener added");
+                _ => {}
+            }))?;
+            log::debug!("event listener added");
+        }
+        // add response handler to handle error response
+        {
+            let sender = sender.clone();
+            tab.register_response_handling(
+                "document",
+                Box::new(move |params, fetch_body| match params.response.status {
+                    401 => {
+                        log::error!("401: {:?}", params.response.url);
+                    }
+                    400.. => {
+                        log::error!("Received response is error: {:?}", params.response);
+                        sender
+                            .send(Err(anyhow!(
+                                "Response error {}, {}",
+                                params.response.status,
+                                params.response.url
+                            )))
+                            .expect("Failed to send to receiver");
+                    }
+                    _ => {
+                        if params.req
+                        //                        log::info!("{}: {}", params.response.status, params.response.url)
+                    }
+                }),
+            )?;
+            log::debug!("response handler added");
+        }
         Ok((browser, tab, receiver))
     }
 
