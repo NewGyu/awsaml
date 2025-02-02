@@ -4,6 +4,7 @@ use anyhow::anyhow;
 use headless_chrome::protocol::cdp::types::Event;
 use headless_chrome::protocol::cdp::Network::{self, Request};
 use headless_chrome::{Browser, LaunchOptions, Tab};
+use std::path::PathBuf;
 use std::sync::{
     mpsc::{channel, Receiver},
     Arc,
@@ -15,13 +16,15 @@ use url::{form_urlencoded, Url};
 pub struct ChromeSamlAgent {
     idp: Box<dyn SamlIdProvider>,
     sp_callback_url: String,
+    user_data_dir: PathBuf,
 }
 
 impl ChromeSamlAgent {
-    pub fn new(idp: Box<dyn SamlIdProvider>, callback_url: Url) -> Self {
+    pub fn new(idp: Box<dyn SamlIdProvider>, callback_url: Url, user_data_dir: PathBuf) -> Self {
         ChromeSamlAgent {
             idp,
             sp_callback_url: callback_url.to_string(),
+            user_data_dir,
         }
     }
 
@@ -44,6 +47,7 @@ impl ChromeSamlAgent {
     ) -> Result<(Browser, Arc<Tab>, Receiver<Result<SamlResponse>>)> {
         let browser = Browser::new(LaunchOptions {
             headless: false,
+            user_data_dir: Some(self.user_data_dir.clone()),
             ..Default::default()
         })?;
         let tab = browser.new_tab()?;
@@ -92,7 +96,6 @@ impl ChromeSamlAgent {
                             .expect("Failed to send to receiver");
                     }
                     _ => {
-                        if params.req
                         //                        log::info!("{}: {}", params.response.status, params.response.url)
                     }
                 }),

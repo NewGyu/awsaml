@@ -1,4 +1,6 @@
 //! Configuration for the AWSAML CLI
+use std::path::PathBuf;
+
 use anyhow::Result;
 
 use crate::cmd::prompt::{Prompt, Required};
@@ -9,7 +11,7 @@ pub struct Config {
     pub entra_id_tenant: String,
     pub app_id_uri: String,
     pub session_duration_hours: i32,
-    pub chrome_user_data_dir: String,
+    pub chrome_user_data_dir: PathBuf,
 }
 
 impl Config {
@@ -55,7 +57,7 @@ impl Config {
             )
             .set(
                 config_keys::CHROME_USER_DATA_DIR,
-                &self.chrome_user_data_dir,
+                &self.chrome_user_data_dir.to_string_lossy().into_owned(),
             );
         awsconfig.save()?;
         println!("Configuration saved to {}", &awsconfig.file_path);
@@ -82,7 +84,8 @@ impl Config {
                 chrome_user_data_dir: section
                     .get(config_keys::CHROME_USER_DATA_DIR)
                     .unwrap_or("")
-                    .to_string(),
+                    .to_string()
+                    .into(),
             })
         } else {
             Err(anyhow::anyhow!("Profile[{}] not found", profile))

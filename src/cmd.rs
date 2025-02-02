@@ -35,7 +35,11 @@ pub fn login(profile: &String, _role_name: Option<String>) -> Result<()> {
     log::debug!("{:?}", &saml_req);
 
     let entra_id = EntraIdSamlIdProvider::new(config.entra_id_tenant.to_string());
-    let mut agent = ChromeSamlAgent::new(Box::new(entra_id), Url::parse(AWS_SAML_CALLBACK)?);
+    let mut agent = ChromeSamlAgent::new(
+        Box::new(entra_id),
+        Url::parse(AWS_SAML_CALLBACK)?,
+        config.chrome_user_data_dir,
+    );
     log::debug!("{:?}", &agent);
 
     let saml_res = agent.saml_request_to_idp(saml_req)?;
